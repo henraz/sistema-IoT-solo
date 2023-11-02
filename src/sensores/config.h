@@ -17,5 +17,6 @@
 #define CS12_UMIDADE "/feeds/pi-5.cs12-umidade"
 #define DSB18B20_TEMPERATURA "/feeds/pi-5.ds18b20-temperatura"
 #define BH1750_LUX "/feeds/pi-5.bh1750-luminosidade"
+#define RELE "/feeds/pi-5.rele"
 
 #endif // CONFIG_H
