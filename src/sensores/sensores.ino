@@ -9,10 +9,10 @@
 #include "config.h"
 
 // Portas dos sensores
-#define PortaUmidadeSolo = A0
-#define PortaDHT = 14
-#define PortaDS18B20 = D7
-#define PortaRele = D6
+#define PortaUmidadeSolo A0
+#define PortaDHT 14
+#define PortaDS18B20 D7
+#define PortaRele D6
 
 // Tempo de envio dos dados
 unsigned long executionDuration = 900000; 
@@ -23,12 +23,23 @@ int tempoControle[][2] = {
   {720000, 3}
 };
 
+// Variável de contagem de tempo
+unsigned long startTime;
+
 // Tempo máximo da rega
 int tempoRega = 1000;
 
 // Mapeamento do sensor de umidade do solo 
 const float seco    = 764.16;
 const float molhado = 455.12;
+
+// Variáveis que receberão os resultados dos sensores
+float valorUmidadeSolo;
+float percentUmidadeSolo;
+float valorTemperaturaDHT;
+float valorUmidadeDHT;
+float valorDS18B20Temperatura;
+float valorLuxBH1750;
 
 // Instanciando objetos para os sensores
 DHTesp dht;
@@ -42,10 +53,10 @@ Adafruit_MQTT_Client mqtt(&client, "io.adafruit.com", 1883, AIO_USERNAME, AIO_KE
 
 // Objetos para conexão com os feeds dos sensores
 Adafruit_MQTT_Publish cs12Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE);
-Adafruit_MQTT_Publish cs12UmidadePercent = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE);
+Adafruit_MQTT_Publish cs12UmidadePercent = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE_PERCENT);
 Adafruit_MQTT_Publish dht11Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_TEMPERATURA);
 Adafruit_MQTT_Publish dht11Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_UMIDADE);
-Adafruit_MQTT_Publish ds18b2Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DSB18B20_TEMPERATURA);
+Adafruit_MQTT_Publish ds18b20Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DSB18B20_TEMPERATURA);
 Adafruit_MQTT_Publish bh1750Lux = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME BH1750_LUX);
 Adafruit_MQTT_Subscribe releSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish relePublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME RELE);
@@ -62,22 +73,15 @@ void setup() {
   digitalWrite(PortaRele, LOW);
   mqtt.subscribe(&releSubscribe);
 
-  // DS18B20
+  // DHT11
   dht.setup(PortaDHT, DHTesp::DHT11);
 
   // DS18B20
-  sensor.begin();
+  sensorDS18B20.begin();
 
   // BH1750
   Wire.begin();
-  lightMeter.begin();
-
-  // Variáveis que receberão os resultados dos sensores
-  int valorUmidadeSolo;
-  float valorTemperaturaDHT;
-  float valorUmidadeDHT;
-  int valorBH1750temperatura;
-  float valorLuxBH1750;
+  sensorBH1750.begin();
 
   //Conexão com a rede WiFi
   Serial.println("Conectando ao WiFi...");
@@ -100,10 +104,10 @@ void loop() {
 
   // Umidade Solo
   valorUmidadeSolo   = analogRead(PortaUmidadeSolo);
-  PercentUmidadeSolo = map(valorUmidadeSolo, seco, molhado, 0, 100); 
+  percentUmidadeSolo = map(valorUmidadeSolo, seco, molhado, 0, 100); 
 
   // Ativar Bomba com base nos dados do sensor de umidade
-  if (valorUmidadeSolo > 1000) {
+  if (percentUmidadeSolo <= 60) {
     digitalWrite(PortaRele, HIGH);
     delay(tempoRega);
     controle.publish("REGA");
@@ -116,18 +120,18 @@ void loop() {
 
   // DS18B20
   sensorDS18B20.requestTemperatures();
-  valorBH1750temperatura = sensorBH1750.getTempCByIndex(0);
+  valorDS18B20Temperatura = sensorDS18B20.getTempCByIndex(0);
 
   // BH1750
   valorLuxBH1750 = sensorBH1750.readLightLevel();
   
   // Publicando dados dos sensores
   cs12Umidade.publish(valorUmidadeSolo);
-  cs12UmidadePercent.publish(PercentUmidadeSolo);
+  cs12UmidadePercent.publish(percentUmidadeSolo);
   dht11Temperatura.publish(valorTemperaturaDHT);
   dht11Umidade.publish(valorUmidadeDHT);
-  ds18b2Temperatura.publish(valorBH1750temperatura);
-  bh1750lux.publish(valorLuxBH1750);
+  ds18b20Temperatura.publish(valorDS18B20Temperatura);
+  bh1750Lux.publish(valorLuxBH1750);
 
   int aux = 0;
   while ((millis() - startTime) <= executionDuration) {
@@ -136,7 +140,7 @@ void loop() {
 
       for (int i = 0; i <= 3; i++){
         VerificaBotao();
-        if (((millis() - startTime) >= meuArray[i][0]) && (aux == meuArray[i][1])){
+        if (((millis() - startTime) >= tempoControle[i][0]) && (aux == tempoControle[i][1])){
           controle.publish("CONTROLE");
           aux += 1;
         }
