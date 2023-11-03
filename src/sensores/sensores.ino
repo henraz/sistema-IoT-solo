@@ -23,6 +23,13 @@ int tempoControle[][2] = {
   {720000, 3}
 };
 
+// Tempo máximo da rega
+int tempoRega = 1000;
+
+// Mapeamento do sensor de umidade do solo 
+const float seco    = 764.16;
+const float molhado = 455.12;
+
 // Instanciando objetos para os sensores
 DHTesp dht;
 OneWire barramento(PortaDS18B20);
@@ -35,12 +42,14 @@ Adafruit_MQTT_Client mqtt(&client, "io.adafruit.com", 1883, AIO_USERNAME, AIO_KE
 
 // Objetos para conexão com os feeds dos sensores
 Adafruit_MQTT_Publish cs12Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE);
+Adafruit_MQTT_Publish cs12UmidadePercent = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE);
 Adafruit_MQTT_Publish dht11Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_TEMPERATURA);
 Adafruit_MQTT_Publish dht11Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_UMIDADE);
 Adafruit_MQTT_Publish ds18b2Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DSB18B20_TEMPERATURA);
 Adafruit_MQTT_Publish bh1750Lux = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME BH1750_LUX);
 Adafruit_MQTT_Subscribe releSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish relePublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME RELE);
+Adafruit_MQTT_Publish controle = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CONTROLE);
 
 void setup() {
   
@@ -90,12 +99,13 @@ void loop() {
   startTime = millis();
 
   // Umidade Solo
-  valorUmidadeSolo = analogRead(PortaUmidadeSolo);
+  valorUmidadeSolo   = analogRead(PortaUmidadeSolo);
+  PercentUmidadeSolo = map(valorUmidadeSolo, seco, molhado, 0, 100); 
 
   // Ativar Bomba com base nos dados do sensor de umidade
   if (valorUmidadeSolo > 1000) {
     digitalWrite(PortaRele, HIGH);
-    delay(1000);
+    delay(tempoRega);
     controle.publish("REGA");
     digitalWrite(PortaRele, LOW);
   }
@@ -112,7 +122,8 @@ void loop() {
   valorLuxBH1750 = sensorBH1750.readLightLevel();
   
   // Publicando dados dos sensores
-  cs12Humidade.publish(valorUmidadeSolo);
+  cs12Umidade.publish(valorUmidadeSolo);
+  cs12UmidadePercent.publish(PercentUmidadeSolo);
   dht11Temperatura.publish(valorTemperaturaDHT);
   dht11Umidade.publish(valorUmidadeDHT);
   ds18b2Temperatura.publish(valorBH1750temperatura);
@@ -124,13 +135,14 @@ void loop() {
       VerificaBotao();
 
       for (int i = 0; i <= 3; i++){
+        VerificaBotao();
         if (((millis() - startTime) >= meuArray[i][0]) && (aux == meuArray[i][1])){
           controle.publish("CONTROLE");
           aux += 1;
         }
       }
   }
-  delay(5000);
+  delay(500);
 }
 
 
@@ -144,7 +156,7 @@ void VerificaBotao(){
        if (strcmp((char *)releSubscribe.lastread, "ON") == 0) { 
           digitalWrite(PortaRele, HIGH);
           controle.publish("REGA");
-          delay(1000);
+          delay(tempoRega);
           digitalWrite(PortaRele, LOW);
           relePublish.publish("OFF");
       }
