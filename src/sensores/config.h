@@ -20,5 +20,8 @@
 #define BH1750_LUX "/feeds/pi-5.bh1750-luminosidade"
 #define RELE "/feeds/pi-5.rele"
 #define CONTROLE "/feeds/pi-5.controle"
+#define TEMPO_REGA "/feeds/pi-5.config-tempo-rega"
+#define PERCENT_UMID_SOLO "/feeds/pi-5.config-percent-umid-solo"
+#define REGA_AUTOMATICA "/feeds/pi-5.config-rega-automatica"
 
 #endif // CONFIG_H

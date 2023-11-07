@@ -15,7 +15,7 @@
 #define PortaRele D6
 
 // Tempo de envio dos dados
-unsigned long executionDuration = 900000; 
+unsigned long tempoEsperaLeitura = 900000; 
 int tempoControle[][2] = {
   {180000, 0},
   {360000, 1},
@@ -26,20 +26,26 @@ int tempoControle[][2] = {
 // Variável de contagem de tempo
 unsigned long startTime;
 
-// Tempo máximo da rega
+// Tempo máximo da rega (milissegundos)
 int tempoRega = 1000;
 
+// Rega Automática
+String regaAutomatica = "ON";
+
+// Percentual da umidade do solo no qual é necessário realizar a rega
+int percentRega = 65;
+
 // Mapeamento do sensor de umidade do solo 
-const float seco    = 764.16;
-const float molhado = 455.12;
+const float seco    = 764;
+const float molhado = 455;
 
 // Variáveis que receberão os resultados dos sensores
-float valorUmidadeSolo;
-float percentUmidadeSolo;
-float valorTemperaturaDHT;
-float valorUmidadeDHT;
-float valorDS18B20Temperatura;
-float valorLuxBH1750;
+int valorUmidadeSolo;
+int percentUmidadeSolo;
+int valorTemperaturaDHT;
+int valorUmidadeDHT;
+int valorDS18B20Temperatura;
+int valorLuxBH1750;
 
 // Instanciando objetos para os sensores
 DHTesp dht;
@@ -61,6 +67,9 @@ Adafruit_MQTT_Publish bh1750Lux = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME BH17
 Adafruit_MQTT_Subscribe releSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish relePublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish controle = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CONTROLE);
+Adafruit_MQTT_Subscribe tempoRegaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME TEMPO_REGA);
+Adafruit_MQTT_Subscribe percentUmidRegaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME PERCENT_UMID_SOLO);
+Adafruit_MQTT_Subscribe regaAutomaticaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME REGA_AUTOMATICA);
 
 void setup() {
   
@@ -71,7 +80,6 @@ void setup() {
   //Relé
   pinMode(PortaRele, OUTPUT);
   digitalWrite(PortaRele, LOW);
-  mqtt.subscribe(&releSubscribe);
 
   // DHT11
   dht.setup(PortaDHT, DHTesp::DHT11);
@@ -92,6 +100,12 @@ void setup() {
   }
   Serial.println();
   Serial.println("Conectado ao WiFi!");
+
+  // Subscriptions
+  mqtt.subscribe(&releSubscribe);
+  mqtt.subscribe(&tempoRegaSubscribe);
+  mqtt.subscribe(&percentUmidRegaSubscribe);
+  mqtt.subscribe(&regaAutomaticaSubscribe);
 }
 
 void loop() {
@@ -107,12 +121,20 @@ void loop() {
   percentUmidadeSolo = map(valorUmidadeSolo, seco, molhado, 0, 100); 
 
   // Ativar Bomba com base nos dados do sensor de umidade
-  if (percentUmidadeSolo <= 60) {
-    digitalWrite(PortaRele, HIGH);
-    delay(tempoRega);
-    controle.publish("REGA");
-    digitalWrite(PortaRele, LOW);
+
+  RegaAutomatica();
+  
+  if (regaAutomatica == "ON"){
+    VerificaTempoRega();
+    VerificaPercentRega();
+    if (percentUmidadeSolo <= percentRega) {
+      digitalWrite(PortaRele, HIGH);
+      delay(tempoRega);
+      controle.publish("REGA");
+      digitalWrite(PortaRele, LOW);
+    }
   }
+
 
   // DHT11
   valorTemperaturaDHT = dht.getTemperature();
@@ -134,11 +156,13 @@ void loop() {
   bh1750Lux.publish(valorLuxBH1750);
 
   int aux = 0;
-  while ((millis() - startTime) <= executionDuration) {
-      
-      VerificaBotao();
+  while ((millis() - startTime) <= tempoEsperaLeitura) {
 
+      VerificaTempoRega();
+      VerificaBotao();
+      
       for (int i = 0; i <= 3; i++){
+        VerificaTempoRega();
         VerificaBotao();
         if (((millis() - startTime) >= tempoControle[i][0]) && (aux == tempoControle[i][1])){
           controle.publish("CONTROLE");
@@ -163,6 +187,44 @@ void VerificaBotao(){
           delay(tempoRega);
           digitalWrite(PortaRele, LOW);
           relePublish.publish("OFF");
+      }
+    }
+  }
+}
+
+void VerificaTempoRega(){
+  
+  Adafruit_MQTT_Subscribe *subscription;
+  while ((subscription = mqtt.readSubscription(1000))) {
+    if (subscription == &tempoRegaSubscribe) {
+      String tempoRegaString = (char *)tempoRegaSubscribe.lastread;
+      tempoRega = tempoRegaString.toInt() * 1000;
+    }
+  }
+}
+
+void VerificaPercentRega(){
+  
+  Adafruit_MQTT_Subscribe *subscription;
+  while ((subscription = mqtt.readSubscription(1000))) {
+    if (subscription == &percentUmidRegaSubscribe) {
+      String percentRegaString = (char *)percentUmidRegaSubscribe.lastread;
+      percentRega = percentRegaString.toInt();
+    }
+  }
+}
+
+void RegaAutomatica(){
+  
+  Adafruit_MQTT_Subscribe *subscription;
+  while ((subscription = mqtt.readSubscription(1000))) {    
+    if (subscription == &regaAutomaticaSubscribe) {
+
+      if (strcmp((char *)regaAutomaticaSubscribe.lastread, "ON") == 0) {
+        regaAutomatica = "ON";  
+      }
+      else if (strcmp((char *)regaAutomaticaSubscribe.lastread, "OFF") == 0) {
+        regaAutomatica = "OFF"; 
       }
     }
   }
