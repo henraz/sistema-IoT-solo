@@ -1,6 +1,13 @@
 # Introdução
 
-Sistema IoT para controle da temperatura e umidade relativa do ar, nível de luminosidade, temperatura e nível de umidade do solo construído como parte do Projeto Integrador da UNIVESP.
+Sistema IoT de monitoramento e controle ambiental desenvolvido como parte do Projeto Integrador V da UNIVESP. Este projeto utiliza o NodeMCU com alguns sensores para efetuar as medições:
+
+  - Temperatura ambiente e umidade relativa do ar;
+  - Temperatura do solo;
+  - Umidade do solo;
+  - Intensidade da luz.
+
+Além dessas funcionalidades, o sistema também incorpora um sistema de irrigação automático e que também pode ser acionado pelo usuário conforme necessário. Os dados capturados por esses sensores podem ser acessados e visualizados por meio da plataforma Adafruit IO. Na mesma plataforma o usuário pode definir parâmetros utilizados pelo sistema, como o tempo de irrigação e as condições desejadas para ativar o sistema de irrigação automático.
 
 # Ferramentas
 
@@ -8,7 +15,7 @@ Sistema IoT para controle da temperatura e umidade relativa do ar, nível de lum
 
 ### Materiais utilizados
 
-1. [nodeMCU devkit](https://github.com/nodemcu/nodemcu-devkit-v1.0)
+1. [NodeMCU devkit](https://github.com/nodemcu/nodemcu-devkit-v1.0)
 2. Sensor DHT11
 3. Sensor DS18B20
 4. BH1750
