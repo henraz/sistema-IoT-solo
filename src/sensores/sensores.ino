@@ -58,7 +58,6 @@ WiFiClient client;
 Adafruit_MQTT_Client mqtt(&client, "io.adafruit.com", 1883, AIO_USERNAME, AIO_KEY);
 
 // Objetos para conexão com os feeds dos sensores
-Adafruit_MQTT_Publish cs12Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE);
 Adafruit_MQTT_Publish cs12UmidadePercent = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CS12_UMIDADE_PERCENT);
 Adafruit_MQTT_Publish dht11Temperatura = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_TEMPERATURA);
 Adafruit_MQTT_Publish dht11Umidade = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME DHT11_UMIDADE);
@@ -67,9 +66,6 @@ Adafruit_MQTT_Publish bh1750Lux = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME BH17
 Adafruit_MQTT_Subscribe releSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish relePublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME RELE);
 Adafruit_MQTT_Publish controle = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME CONTROLE);
-Adafruit_MQTT_Subscribe tempoRegaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME TEMPO_REGA);
-Adafruit_MQTT_Subscribe percentUmidRegaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME PERCENT_UMID_SOLO);
-Adafruit_MQTT_Subscribe regaAutomaticaSubscribe = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME REGA_AUTOMATICA);
 
 void setup() {
   
@@ -103,9 +99,6 @@ void setup() {
 
   // Subscriptions
   mqtt.subscribe(&releSubscribe);
-  mqtt.subscribe(&tempoRegaSubscribe);
-  mqtt.subscribe(&percentUmidRegaSubscribe);
-  mqtt.subscribe(&regaAutomaticaSubscribe);
 }
 
 void loop() {
@@ -121,12 +114,7 @@ void loop() {
   percentUmidadeSolo = map(valorUmidadeSolo, seco, molhado, 0, 100); 
 
   // Ativar Bomba com base nos dados do sensor de umidade
-
-  RegaAutomatica();
-  
   if (regaAutomatica == "ON"){
-    VerificaTempoRega();
-    VerificaPercentRega();
     if (percentUmidadeSolo <= percentRega) {
       digitalWrite(PortaRele, HIGH);
       delay(tempoRega);
@@ -148,7 +136,6 @@ void loop() {
   valorLuxBH1750 = sensorBH1750.readLightLevel();
   
   // Publicando dados dos sensores
-  cs12Umidade.publish(valorUmidadeSolo);
   cs12UmidadePercent.publish(percentUmidadeSolo);
   dht11Temperatura.publish(valorTemperaturaDHT);
   dht11Umidade.publish(valorUmidadeDHT);
@@ -158,12 +145,8 @@ void loop() {
   int aux = 0;
   while ((millis() - startTime) <= tempoEsperaLeitura) {
 
-      VerificaTempoRega();
       VerificaBotao();
-      
       for (int i = 0; i <= 3; i++){
-        VerificaTempoRega();
-        VerificaBotao();
         if (((millis() - startTime) >= tempoControle[i][0]) && (aux == tempoControle[i][1])){
           controle.publish("CONTROLE");
           aux += 1;
@@ -178,54 +161,16 @@ void loop() {
 void VerificaBotao(){
   
   Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(1000))) {
-    if (subscription == &releSubscribe) {
+  subscription = mqtt.readSubscription(1000);
 
-       if (strcmp((char *)releSubscribe.lastread, "ON") == 0) { 
-          digitalWrite(PortaRele, HIGH);
-          controle.publish("REGA");
-          delay(tempoRega);
-          digitalWrite(PortaRele, LOW);
-          relePublish.publish("OFF");
-      }
-    }
-  }
-}
+  if (subscription == &releSubscribe) {
 
-void VerificaTempoRega(){
-  
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(1000))) {
-    if (subscription == &tempoRegaSubscribe) {
-      String tempoRegaString = (char *)tempoRegaSubscribe.lastread;
-      tempoRega = tempoRegaString.toInt() * 1000;
-    }
-  }
-}
-
-void VerificaPercentRega(){
-  
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(1000))) {
-    if (subscription == &percentUmidRegaSubscribe) {
-      String percentRegaString = (char *)percentUmidRegaSubscribe.lastread;
-      percentRega = percentRegaString.toInt();
-    }
-  }
-}
-
-void RegaAutomatica(){
-  
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(1000))) {    
-    if (subscription == &regaAutomaticaSubscribe) {
-
-      if (strcmp((char *)regaAutomaticaSubscribe.lastread, "ON") == 0) {
-        regaAutomatica = "ON";  
-      }
-      else if (strcmp((char *)regaAutomaticaSubscribe.lastread, "OFF") == 0) {
-        regaAutomatica = "OFF"; 
-      }
+    if (strcmp((char *)releSubscribe.lastread, "ON") == 0) { 
+      digitalWrite(PortaRele, HIGH);
+      controle.publish("REGA");
+      delay(tempoRega);
+      digitalWrite(PortaRele, LOW);
+      relePublish.publish("OFF");
     }
   }
 }
